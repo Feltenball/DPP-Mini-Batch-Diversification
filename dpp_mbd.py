@@ -23,19 +23,10 @@ Negative include those where the dataset is already inherently balanced (ie MNIS
 
 """
 
-from typing import Iterator, Iterable, Optional, Sequence, List, TypeVar, Generic, Sized, Union
-
-import torch
-from torch import nn
-from torch.utils.data import DataLoader
-from torchvision import datasets
-from torchvision.transforms import ToTensor
-from torch import Tensor
+from typing import Iterator, Sequence
 from torch.utils.data import Sampler
-
 import numpy as np
 from scipy.linalg import eigh
-import matplotlib.pyplot as plt
 
 class KDPP:
     def __init__(self, L : np.ndarray, k : int) -> None:
