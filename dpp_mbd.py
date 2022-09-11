@@ -1,5 +1,25 @@
 """ dpp_mbd
 DPP Minibatch Diversification for Pytorch DataLoaders
+Zhang, Kjellstrom and Mandt: Determinantal Point Processes for Mini-Batch Diversification
+
+class KDPP
+    Contains k-dpp inference operations
+class DPPSampler
+    Extends Pytorch samplers, yielding a sequence of indices sampled by the k-dpp upon iteration
+Usage:
+    Datapoints should be mapped to Y = {1, ..., n} by the user
+    Similarities between (i, j), i, j in Y in this set should be defined in a kernel called the L kernel
+    Indices in Y are sampled by the DPP
+
+A model trained on a balanced training set gives higher predictive accuracy. 
+Sampling through a k-dpp aims to generate a biased, but balanced subsample.
+The alteration to standard SGD is simple and the update step of the algorithm is changed to
+x_{t+1} = x_{t} - p_t 1/k  \sum_{i \in B} \nabla l(x, y_i), B ~ k-DPP 
+
+Positive situations for DM-SGD primarily include those datasets which are not balanced.
+Negative include those where the dataset is already inherently balanced (ie MNIST)
+
+
 
 """
 
@@ -49,7 +69,7 @@ class KDPP:
         Kuszela and Taskar Algorithm 8
         """
         """ First compute the symmetric polynomials """
-        e = self.elementary_symmetric_polynomial(self.evals, self.k)
+        e = self.elementary_symmetric_polynomial()
         # Output set
         J = []
         l = self.k
@@ -72,7 +92,7 @@ class KDPP:
 
         return J
     
-    def sample_exact_k(self, evals, evecs, k) -> list:
+    def sample_exact_k(self) -> list:
         """ evals, evecs - eigendecomposition of L kernel.
         Samples an L DPP according to Algorithm 1 in Kuszela and Taskar
         (spectral decomposition method)
@@ -86,10 +106,10 @@ class KDPP:
         set of eigenvectors to the set indexed by the chosen eigenvalues 
         """
         # Define the ground set size
-        N = evals.shape[0]
+        N = self.evals.shape[0]
         # Construct corresponding set of eigenvectors
-        J = self.sample_k_mixture_components(evals, k)
-        V = evecs[:, J]
+        J = self.sample_k_mixture_components()
+        V = self.evecs[:, J]
         dim_V = V.shape[1]
         
         # Hold output
@@ -152,36 +172,17 @@ class DPPSampler(Sampler[int]):
 
     indices : Sequence[int]
 
-    def __init__(self, indices : Sequence[int]) -> None:
-        pass
+    def __init__(self, indices : Sequence[int], k_dpp : KDPP) -> None:
+        # indices might actually be a redundant variable here since indices is encoded within the k-dpp
+        self.indices = indices
+        self.k_dpp = k_dpp
 
     def __iter__(self) -> Iterator[int]:
-        pass
+        # Obtain a relevant subset of the indices
+        dpp_sample = self.k_dpp.sample_exact_k()
+        # Yield it
+        for i in dpp_sample:
+            yield i
 
     def __len__(self) -> int:
-        return len(self.data_source)
-
-
-
-
-# Download training data from open datasets.
-training_data = datasets.FashionMNIST(
-    root="data",
-    train=True,
-    download=True,
-    transform=ToTensor(),
-)
-
-# Download test data from open datasets.
-test_data = datasets.FashionMNIST(
-    root="data",
-    train=False,
-    download=True,
-    transform=ToTensor(),
-)
-
-batch_size = 64
-
-# Create data loaders.
-train_dataloader = DataLoader(training_data, batch_size=batch_size)
-test_dataloader = DataLoader(test_data, batch_size=batch_size)
+        return len(self.indices)
